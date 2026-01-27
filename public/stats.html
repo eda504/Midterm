@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Results</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="stats-container">
+        <h2>~ Results ~</h2>
+        <table border="0">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Survival Time</th>
+              <th>Total Score</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <button onclick="window.location.href='game.html'">START NEW RUN</button>
+    </div>
+
+    <script>
+        const rows = document.getElementById('rows');
+        const data = JSON.parse(localStorage.getItem('leaderboard') || '[]');
+        
+        // Sort by highest score
+        data.sort((a, b) => b.score - a.score);
+
+        data.forEach(entry => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="color:#ffd700; font-weight:bold;">${entry.name}</td>
+            <td>${entry.time}s</td>
+            <td>${entry.score}</td>
+            <td style="font-size: 12px; color: #888;">${entry.date}</td>
+          `;
+          rows.appendChild(tr);
+        });
+    </script>
+</body>
+</html>
