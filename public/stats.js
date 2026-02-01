@@ -1,5 +1,9 @@
 const rows = document.getElementById('rows');
 const data = JSON.parse(localStorage.getItem('leaderboard') || '[]');
+const music = new Audio('music2.mp3');
+music.loop = true;
+music.volume = 0.4;
+music.play();
 
 // Sort by longest time surviving
 data.sort((a, b) => b.time - a.time);

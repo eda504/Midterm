@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Results</title>
+    <title>~ Results ~</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -22,22 +22,58 @@
     </div>
 
     <script>
-        const rows = document.getElementById('rows');
-        const data = JSON.parse(localStorage.getItem('leaderboard') || '[]');
-        
-        // Sort by highest score
-        data.sort((a, b) => b.score - a.score);
+    const rows = document.getElementById('rows');
+    let data = JSON.parse(localStorage.getItem('leaderboard') || '[]');
 
-        data.forEach(entry => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td style="color:#ffd700; font-weight:bold;">${entry.name}</td>
-            <td>${entry.time}s</td>
-            <td>${entry.score}</td>
-            <td style="font-size: 12px; color: #888;">${entry.date}</td>
-          `;
-          rows.appendChild(tr);
+    // --- Audio Setup ---
+    const music = new Audio('music2.mp3');
+    music.loop = true;
+    music.volume = 0.4;
+
+    // Function to try and play music
+    function playMusic() {
+        music.play().catch(() => {
+            // If auto-play is blocked, wait for a click
+            console.log("Autoplay blocked. Waiting for user interaction...");
+            document.addEventListener('click', () => {
+                music.play();
+            }, { once: true });
         });
+    }
+
+    // --- Table Logic ---
+    data.sort((a, b) => b.score - a.score);
+
+    function renderTable() {
+        rows.innerHTML = ''; 
+        data.forEach((entry, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="color:#ffd700; font-weight:bold;">${entry.name}</td>
+                <td>${entry.time}s</td>
+                <td>${entry.score}</td>
+                <td style="font-size: 12px; color: #888;">${entry.date}</td>
+                <td>
+                    <button onclick="deleteEntry(${index})" style="padding: 5px 10px; font-size: 12px; background: #ff4444; color: white; border:none; cursor:pointer;">
+                        Delete
+                    </button>
+                </td>
+            `;
+            rows.appendChild(tr);
+        });
+    }
+
+    window.deleteEntry = function(index) {
+        if (confirm("Are you sure you want to delete this score?")) {
+            data.splice(index, 1);
+            localStorage.setItem('leaderboard', JSON.stringify(data));
+            renderTable();
+        }
+    };
+
+    // Initialize
+    playMusic();
+    renderTable();
     </script>
 </body>
 </html>

@@ -15,20 +15,13 @@ let isInvincible = false;
 let currentScrollSpeed = 2;
 const gravity = 0.5;
 
-function startGame() {
-  playerName = prompt("Enter your name:");
-  if (!playerName) playerName = "Guest";
-  resetGame();
-}
-
+// --- Audio ---
 const music = new Audio('music.mp3');
 music.loop = true;
 music.volume = 0.4;
 const jumpSound = new Audio('jump.mp3');
-
-let keys = {};
-document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+const coinSound = new Audio('coin.mp3');
+const deathSound = new Audio('death.mp3');
 
 // --- Assets ---
 let loadedImages = 0;
@@ -43,10 +36,24 @@ const standingImg = new Image(); standingImg.src = 'standing.png'; standingImg.o
 const walkingLeftImg = new Image(); walkingLeftImg.src = 'walking_left.png'; walkingLeftImg.onload = onImageLoad;
 const walkingRightImg = new Image(); walkingRightImg.src = 'walking_right.png'; walkingRightImg.onload = onImageLoad;
 
+// --- Controls ---
+let keys = {};
+document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+function startGame() {
+  playerName = prompt("Enter your name:");
+  if (!playerName) playerName = "Guest";
+  resetGame();
+}
+
 function resetGame() {
   cameraX = 0;
   currentScrollSpeed = 2;
-  player = { x: 300, y: 100, w: 40, h: 50, dx: 0, dy: 0, onGround: true, score: 0 };
+  player = { 
+    x: 300, y: 100, w: 40, h: 50, dx: 0, dy: 0, 
+    onGround: true, score: 0, lastScoreTime: Date.now() 
+  };
   platforms = [{ x: 0, y: canvas.height - 100, w: 800 }]; 
   coins = [];
   enemies = [];
@@ -86,12 +93,19 @@ function drawPlayer() {
 }
 
 function update() {
-  if (isGameOver) return; // Immediate exit if game is over
+  if (isGameOver) return; 
   
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const now = Date.now();
   const prevY = player.y;
-  const timeSec = (Date.now() - startTime) / 1000;
+  const timeSec = (now - startTime) / 1000;
   currentScrollSpeed = 2 + (timeSec / 20); 
+
+  // --- Survival Points (10 per second) ---
+  if (now - player.lastScoreTime >= 1000) {
+    player.score += 10;
+    player.lastScoreTime = now;
+  }
 
   player.dx = 0;
   if (keys['a']) player.dx = -4;
@@ -119,10 +133,9 @@ function update() {
     }
   });
 
-  // CHECK DEATH WALL/FALLING
   if (player.x < cameraX || player.y > canvas.height) {
     loseHeart();
-    if (isGameOver) return; // Exit update loop if loseHeart ended the game
+    if (isGameOver) return; 
   }
 
   if (platforms[platforms.length - 1].x < cameraX + canvas.width) spawnPlatform();
@@ -136,15 +149,28 @@ function update() {
     ctx.fillRect(p.x, p.y, p.w, 40);
   });
 
+  // Render Rupees (Hexagon shape)
   coins.forEach(c => {
     if (!c.collected) {
-      ctx.fillStyle = '#ffd700';
+      ctx.fillStyle = '#00e640';
+      ctx.strokeStyle = '#007d21';
+      ctx.lineWidth = 2;
+      const w = 12; const h = 20;
       ctx.beginPath();
-      ctx.arc(c.x, c.y, 8, 0, Math.PI * 2);
-      ctx.fill();
-      if (player.x < c.x + 8 && player.x + player.w > c.x - 8 && player.y < c.y + 8 && player.y + player.h > c.y - 8) {
+      ctx.moveTo(c.x, c.y - h / 2); 
+      ctx.lineTo(c.x + w / 2, c.y - h / 4);
+      ctx.lineTo(c.x + w / 2, c.y + h / 4);
+      ctx.lineTo(c.x, c.y + h / 2);
+      ctx.lineTo(c.x - w / 2, c.y + h / 4);
+      ctx.lineTo(c.x - w / 2, c.y - h / 4);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+
+      if (player.x < c.x + w/2 && player.x + player.w > c.x - w/2 && 
+          player.y < c.y + h/2 && player.y + player.h > c.y - h/2) {
         c.collected = true;
         player.score += 10;
+        coinSound.play().catch(() => {});
       }
     }
   });
@@ -168,8 +194,10 @@ function update() {
   if (!isInvincible || Math.floor(Date.now() / 100) % 2 === 0) drawPlayer();
   ctx.restore();
 
+  // HUD
   ctx.fillStyle = "white";
   ctx.font = "bold 24px Arial";
+  ctx.textAlign = "left";
   ctx.fillText(`❤️ ${hearts} | Time: ${timeSec.toFixed(1)}s | Score: ${player.score}`, 20, 40);
 
   window.gameLoop = requestAnimationFrame(update);
@@ -177,9 +205,7 @@ function update() {
 
 function loseHeart() {
   if (isInvincible || isGameOver) return;
-  
   hearts--;
-  
   if (hearts <= 0) {
     endGame();
   } else {
@@ -187,23 +213,35 @@ function loseHeart() {
     const respawnPlat = platforms.find(p => p.x > cameraX + 150) || platforms[platforms.length - 1];
     player.x = respawnPlat.x + 20;
     player.y = respawnPlat.y - 150;
-    player.dy = 0;
-    player.dx = 0;
+    player.dy = 0; player.dx = 0;
     setTimeout(() => { isInvincible = false; }, 2000);
   }
 }
 
 function endGame() {
-  isGameOver = true;
-  cancelAnimationFrame(window.gameLoop);
-  
-  const finalTime = ((Date.now() - startTime) / 1000).toFixed(2);
-  const history = JSON.parse(localStorage.getItem('leaderboard') || '[]');
-  history.push({ name: playerName, time: finalTime, score: player.score, date: new Date().toLocaleString() });
-  localStorage.setItem('leaderboard', JSON.stringify(history));
-  
-  // Use a small timeout to ensure the browser processes the redirect correctly
-  setTimeout(() => {
-    window.location.href = 'stats.html';
-  }, 100);
+    isGameOver = true;
+    cancelAnimationFrame(window.gameLoop);
+    
+    // Stop background music and play death sound
+    music.pause();
+    music.currentTime = 0;
+    deathSound.play().catch(() => {});
+
+    // Visual "Game Over" Overlay
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ff4444";
+    ctx.font = "bold 60px Times New Roman";
+    ctx.textAlign = "center";
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
+    
+    const finalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    const history = JSON.parse(localStorage.getItem('leaderboard') || '[]');
+    history.push({ name: playerName, time: finalTime, score: player.score, date: new Date().toLocaleString() });
+    localStorage.setItem('leaderboard', JSON.stringify(history));
+    
+    // Wait 2 seconds so the player can see the "Game Over" screen and hear the sound
+    setTimeout(() => {
+      window.location.href = 'stats.html';
+    }, 7008);
 }
