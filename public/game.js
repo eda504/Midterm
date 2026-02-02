@@ -135,10 +135,11 @@ function update() {
     player.lastScoreTime = now;
   }
 
-  player.dx = 0;
-  if (keys['a']) player.dx = -4;
-  if (keys['d']) player.dx = 4;
-  if (keys[' '] && player.onGround) {
+    player.dx = 0;
+    const playerSpeed = 4 + (timeSec / 25); // Increase speed with difficulty
+    if (keys['a']) player.dx = -playerSpeed;
+    if (keys['d']) player.dx = playerSpeed;
+    if (keys[' '] && player.onGround) {
     player.dy = -16;
     player.onGround = false;
     jumpSound.play().catch(() => {});
