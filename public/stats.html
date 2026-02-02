@@ -14,6 +14,7 @@
               <th>Survival Time</th>
               <th>Total Score</th>
               <th>Date</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="rows"></tbody>
@@ -23,17 +24,15 @@
 
     <script>
     const rows = document.getElementById('rows');
-    let data = JSON.parse(localStorage.getItem('leaderboard') || '[]');
+    const API_URL = '/api/leaderboard';
 
     // --- Audio Setup ---
     const music = new Audio('music2.mp3');
     music.loop = true;
     music.volume = 0.4;
 
-    // Function to try and play music
     function playMusic() {
         music.play().catch(() => {
-            // If auto-play is blocked, wait for a click
             console.log("Autoplay blocked. Waiting for user interaction...");
             document.addEventListener('click', () => {
                 music.play();
@@ -41,39 +40,56 @@
         });
     }
 
-    // --- Table Logic ---
-    data.sort((a, b) => b.score - a.score);
+    // --- Load & Render from API ---
+    async function loadLeaderboard() {
+        try {
+            const response = await fetch(API_URL);
+            if (!response.ok) throw new Error('Failed to load leaderboard');
+            const data = await response.json();
 
-    function renderTable() {
-        rows.innerHTML = ''; 
-        data.forEach((entry, index) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="color:#ffd700; font-weight:bold;">${entry.name}</td>
-                <td>${entry.time}s</td>
-                <td>${entry.score}</td>
-                <td style="font-size: 12px; color: #888;">${entry.date}</td>
-                <td>
-                    <button onclick="deleteEntry(${index})" style="padding: 5px 10px; font-size: 12px; background: #ff4444; color: white; border:none; cursor:pointer;">
-                        Delete
-                    </button>
-                </td>
-            `;
-            rows.appendChild(tr);
-        });
+            // Sort by score descending (or change to time if preferred)
+            data.sort((a, b) => b.score - a.score);
+
+            rows.innerHTML = '';
+            data.forEach((entry, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="color:#ffd700; font-weight:bold;">${entry.name}</td>
+                    <td>${entry.time}s</td>
+                    <td>${entry.score}</td>
+                    <td style="font-size: 12px; color: #888;">${entry.date}</td>
+                    <td>
+                        <button onclick="deleteEntry(${index})" style="padding: 5px 10px; font-size: 12px; background: #ff4444; color: white; border:none; cursor:pointer;">
+                            Delete
+                        </button>
+                    </td>
+                `;
+                rows.appendChild(tr);
+            });
+        } catch (err) {
+            console.error(err);
+            rows.innerHTML = '<tr><td colspan="5">Error loading leaderboard</td></tr>';
+        }
     }
 
-    window.deleteEntry = function(index) {
-        if (confirm("Are you sure you want to delete this score?")) {
-            data.splice(index, 1);
-            localStorage.setItem('leaderboard', JSON.stringify(data));
-            renderTable();
+    async function deleteEntry(index) {
+        if (!confirm("Are you sure you want to delete this score?")) return;
+
+        try {
+            const response = await fetch(`${API_URL}/${index}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) throw new Error('Delete failed');
+            loadLeaderboard(); // refresh table
+        } catch (err) {
+            console.error('Delete error:', err);
+            alert('Could not delete entry');
         }
-    };
+    }
 
     // Initialize
     playMusic();
-    renderTable();
+    loadLeaderboard();
     </script>
 </body>
 </html>

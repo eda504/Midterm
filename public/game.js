@@ -8,6 +8,31 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+// Read URL parameter for difficulty (satisfies URL param requirement)
+const urlParams = new URLSearchParams(window.location.search);
+const difficulty = urlParams.get('difficulty') || 'normal';
+
+// Cookie helpers
+function setCookie(name, value, days = 90) {
+  let expires = "";
+  if (days) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    expires = "; expires=" + date.toUTCString();
+  }
+  document.cookie = name + "=" + (value || "") + expires + "; path=/";
+}
+
+function getCookie(name) {
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i].trim();
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length);
+  }
+  return null;
+}
+
 // --- Initialization & State ---
 let playerName = "";
 let player, platforms, coins, enemies, cameraX, startTime, hearts, isGameOver, frameTimer, frameIndex;
@@ -42,14 +67,17 @@ document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 function startGame() {
-  playerName = prompt("Enter your name:");
-  if (!playerName) playerName = "Guest";
+  playerName = getCookie("playerName");
+  if (!playerName) {
+    playerName = prompt("Enter your name:") || "Guest";
+    setCookie("playerName", playerName);
+  }
   resetGame();
 }
 
 function resetGame() {
   cameraX = 0;
-  currentScrollSpeed = 2;
+  currentScrollSpeed = (difficulty === 'hard') ? 3.5 : 2;
   player = { 
     x: 300, y: 100, w: 40, h: 50, dx: 0, dy: 0, 
     onGround: true, score: 0, lastScoreTime: Date.now() 
@@ -58,13 +86,13 @@ function resetGame() {
   coins = [];
   enemies = [];
   startTime = Date.now();
-  hearts = 3;
+  hearts = (difficulty === 'hard') ? 1 : 3;
   isGameOver = false;
   isInvincible = false;
   frameTimer = 0;
   frameIndex = 0;
   
-  for(let i=0; i<8; i++) spawnPlatform();
+  for(let i = 0; i < 8; i++) spawnPlatform();
   
   if (window.gameLoop) cancelAnimationFrame(window.gameLoop);
   update();
@@ -219,29 +247,47 @@ function loseHeart() {
 }
 
 function endGame() {
-    isGameOver = true;
-    cancelAnimationFrame(window.gameLoop);
-    
-    // Stop background music and play death sound
-    music.pause();
-    music.currentTime = 0;
-    deathSound.play().catch(() => {});
+  isGameOver = true;
+  cancelAnimationFrame(window.gameLoop);
+  
+  music.pause();
+  music.currentTime = 0;
+  deathSound.play().catch(() => {});
 
-    // Visual "Game Over" Overlay
-    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#ff4444";
-    ctx.font = "bold 60px Times New Roman";
-    ctx.textAlign = "center";
-    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
-    
-    const finalTime = ((Date.now() - startTime) / 1000).toFixed(2);
-    const history = JSON.parse(localStorage.getItem('leaderboard') || '[]');
-    history.push({ name: playerName, time: finalTime, score: player.score, date: new Date().toLocaleString() });
-    localStorage.setItem('leaderboard', JSON.stringify(history));
-    
-    // Wait 2 seconds so the player can see the "Game Over" screen and hear the sound
+  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#ff4444";
+  ctx.font = "bold 60px Times New Roman";
+  ctx.textAlign = "center";
+  ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
+  
+  const finalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+
+  fetch('/api/leaderboard', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: playerName,
+      time: finalTime,
+      score: player.score,
+      date: new Date().toLocaleString()
+    })
+  })
+  .then(response => {
+    if (!response.ok) throw new Error('Save failed');
+    return response.json();
+  })
+  .then(() => {
     setTimeout(() => {
       window.location.href = 'stats.html';
-    }, 7008);
+    }, 7000);
+  })
+  .catch(err => {
+    console.error('Failed to save score:', err);
+    setTimeout(() => {
+      window.location.href = 'stats.html';
+    }, 7000);
+  });
 }
